@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>听写</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            position: relative;
+        }
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        .header {
+            width: 100%;
+            height: 60px;
+            line-height: 60px;
+            text-align: center;
+        }
+        .header > input {
+            height: 40px;
+            width: 60%;
+            padding: 0 15px;
+            font-size: 16px;
+        }
+        .header > button {
+            padding: 0 5px;
+        }
+        .words {
+            width: 100%;
+            height: calc(100% - 120px);
+            padding: 0 10px;
+            overflow: auto;
+        }
+        .words > p {
+            text-align: center;
+            transition: all .6s;
+            transform: scaleY(0);
+            transform-origin: top;
+            height: 40px;
+        }
+        .word-detail > p {
+            display: inline-block;
+            border: 1px solid #666666;
+            padding: 2px 10px;
+            margin-right: 10px;
+            margin-bottom: 5px;
+            transition: all .5s;
+            font-size: 22px;
+        }
+        .word-detail > div {
+            font-size: 22px;
+            line-height: 30px;
+            border-top: 2px dotted #777777;
+        }
+        .word-detail.nodisplay > p {
+            color: transparent;
+        }
+        .word-detail > .finished {
+            background-color: #666666;
+        }
+        .word-detail > .now {
+            background-color: #29ca51;
+        }
+        .buttons {
+            width: 100%;
+            height: 60px;
+            overflow: hidden;
+        }
+        .buttons > div {
+            width: 100%;
+            height: 200%;
+            text-align: center;
+            transition: all .6s;
+        }
+        .buttons > div > div {
+            width: 100%;
+            height: 50%;
+            font-size: 22px;
+            line-height: 22px;
+        }
+        .buttons input {
+            width: 20px;
+            height: 20px;
+        }
+        button {
+            width: 80px;
+            height: 40px;
+            outline: 0;
+            border: 0;
+            background-color: #30bee2;
+            border-radius: 4px;
+            color: #FFFFFF;
+            font-size: 16px;
+            line-height: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div class="header">
+            <input id="input" placeholder="请输入单词" />
+            <button onclick="handleAdd()">添加</button>
+        </div>
+        <div class="words">
+            <p id="word-text">
+                当前 <span id="word-prv">0</span> / <span id="word-all">0</span> 全部
+            </p>
+            <div class="word-detail" id="word-detail">
+
+            </div>
+        </div>
+        <div class="buttons">
+            <div id="buttons">
+                <div>
+                    <input type="checkbox" id="startMode" onclick="handleHidden()">
+                    <label for="startMode">听写开始时隐藏单词</label>
+                    <button onclick="handleStart()">开始</button>
+                </div>
+                <div>
+                    <button onclick="handlePrv()">上一个</button>
+                    <button onclick="handleReplay()">重播</button>
+                    <button onclick="handleNext()">下一个</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <audio style="display:none;" src="http://dict.youdao.com/dictvoice?type=1&audio=hello" id="video"></audio>
+    <script>
+        var word = [], wordNum = 0;
+        var recommend, listenNow = 0;
+        var start = false;
+        var wordListened = [];
+        const baseUrl = "http://dict.youdao.com/dictvoice?type=1&audio=";
+        var video = document.getElementById('video');
+        document.getElementById('input').onkeydown = (e) => {
+            if(e.keyCode == 13) {
+                handleAdd();
+            }
+        }
+        function handleAdd() {
+            // 只有未开始才能天街
+            if(!start) {
+                const text = document.getElementById('input').value;
+                if(text != '') {
+                    // 创建节点
+                    let p = document.createElement('p');
+                    p.innerText = text;
+                    p.id = wordNum;
+                    p.onclick = () => {
+                        if(!start) {
+                            if(confirm(`确认删除单词“ ${ text } ”吗？`)) {
+                                word.splice(word.findIndex(o => o == p.id), 1);
+                                document.getElementById('word-detail').removeChild(p);
+                            }
+                        }
+                    }
+                    document.getElementById('word-detail').appendChild(p);
+                    // 记录数据
+                    word.push(wordNum);
+                    wordNum++;
+                    // 删除input内容
+                    document.getElementById('input').value = "";
+                }
+            } else {
+                alert('听写已开始！');
+            }
+            
+        }
+        function handleHidden() {
+            if(document.getElementById('startMode').checked) {
+                document.getElementById('word-detail').className = "word-detail nodisplay"
+            } else {
+                document.getElementById('word-detail').className = "word-detail"
+            }
+        }
+        function handleStart() {
+            // 有单词才能开始
+            if(word.length == 0) {
+                alert('请添加单词！');
+            } else {
+                document.getElementById('buttons').style.transform = "translateY(-60px)";
+                document.getElementById('word-text').style.transform = "scaleY(1)";
+                document.getElementById('word-prv').innerText = "1";
+                document.getElementById('word-all').innerText = word.length;
+                // 开启数组
+                recommend = new Array(word.length);
+                for(let i = 0; i < word.length; i++) {
+                    recommend[i] = i+1;
+                }
+                recommend.sort(() => {
+                    return 0.5-Math.random();
+                })
+                // recommend就是听写的顺序
+                console.log(recommend);
+                console.log(word);
+                start = true;
+                // 开始第一个单词听写
+                document.getElementById(word[recommend[0] - 1]).className = "now";
+                video.src = baseUrl + document.getElementById(word[recommend[0] - 1]).innerText;
+                wordListened.push(document.getElementById(word[recommend[0] - 1]).innerText);
+                handleReplay();
+            }   
+        }
+        function handleReplay() {
+            video.play();
+        }
+        function handleNext() {
+            // 先判断是否结束
+            if(listenNow >= word.length-1) {
+                alert('听写结束！');
+                document.getElementById(word[recommend[listenNow] - 1]).className = "finished";
+                // 创建节点
+                let div = document.createElement('div');
+                div.innerText = `听写顺序：\n ${ wordListened.join('\n') }`;
+                document.getElementById('word-detail').appendChild(div);
+                document.getElementById('word-detail').className = "word-detail"
+            } else {
+                // 之前的设置为finished
+                document.getElementById(word[recommend[listenNow] - 1]).className = "finished";
+                // 数字增加
+                listenNow++;
+                // 现在的设置为now
+                document.getElementById(word[recommend[listenNow] - 1]).className = "now";
+                // 修改video
+                video.src = baseUrl + document.getElementById(word[recommend[listenNow] - 1]).innerText;
+                // 修改顶部文本
+                document.getElementById('word-prv').innerText = listenNow + 1;
+                // 记录听写的单词
+                wordListened.push(document.getElementById(word[recommend[listenNow] - 1]).innerText);
+                // 播放
+                handleReplay();
+            }
+        }
+        function handlePrv() {
+            // 先判断能不能上一个
+            if(listenNow == 0) {
+                alert('已经是第一个了！');
+            } else {
+                // 之前的设置为普通
+                document.getElementById(word[recommend[listenNow] - 1]).className = "";
+                // 数字减少
+                listenNow--;
+                // 现在的设置为now
+                document.getElementById(word[recommend[listenNow] - 1]).className = "now";
+                // 修改video
+                video.src = baseUrl + document.getElementById(word[recommend[listenNow] - 1]).innerText;
+                // 修改顶部文本
+                document.getElementById('word-prv').innerText = listenNow + 1;
+                // 去掉最后面的单词
+                wordListened.splice(wordListened.length-1, 1);
+                // 播放
+                handleReplay();
+            }
+            
+        }
+    </script>
+</body>
+</html>
